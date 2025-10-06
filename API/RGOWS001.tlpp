@@ -1,0 +1,84 @@
+#Include "TOTVS.CH"
+#include 'tlpp-core.th'
+#include 'tlpp-rest.th'
+
+/*/{Protheus.doc} RGOWS001
+@title Ordem de Producao
+@description Retorna a OP, empenhos e roteiros de uma ordem de producao
+@type function
+/*/
+@Get(;
+	endpoint="/rgo/v1/productionorders",;
+	description="Retorna os itens de uma ordem de produção",;
+	title="Ordem de Produção",;
+	params='[{"name":"param1","description":"desc_param_1","in":"query","type":"character","required":true}]',;
+	)
+User Function RGOWS001()
+
+	Local oParametros  := oRest:getQueryRequest()		 // Parâmetros da requisição
+	Local oJsonRet     := JsonObject():New()             // Usado para montar resposta customizada
+
+	oRest:setKeyHeaderResponse("Content-Type", "application/json")
+
+	cEmpAnt := oParametros["empresa"]
+	cFilAnt := oParametros["filial"]
+
+	SM0->(DbSetOrder(1)) // M0_CODIGO+M0_CODFIL
+	SM0->(DbGoTop())
+
+	If !SM0->(DbSeek( cEmpAnt + cFilAnt ))
+		oJsonRet["erro"] := "Erro na abertura do ambiente"
+		oRest:SetResponse( oJsonRet:ToJson() )
+		Return
+	Endif
+
+	// Processo da API
+	oJsonRet := ProcessaAPI(oParametros)
+
+	// Retorna um JSON para o solicitante
+	oRest:SetResponse( oJsonRet:ToJson() )
+Return .T.
+
+Static Function ProcessaAPI(oParametros)
+
+	Local cQuery := MontaConsulta(oParametros['numero'],oParametros['item'])
+	Local aDados := {}
+	Local oDadosAtual
+
+	DbUseArea(.T.,"TOPCONN",TcGenQry(,,cQuery),"_SC2",.T.,.T.)
+
+	_SC2->(DbGoTop())
+
+	While !_SC2->(EoF())
+
+		oDadosAtual := JsonObject():New()
+		oDadosAtual['C2_FILIAL'] 	:= _SC2->C2_FILIAL
+		oDadosAtual['C2_NUM'] 		:= _SC2->C2_NUM
+		oDadosAtual['C2_ITEM'] 		:= _SC2->C2_ITEM
+		oDadosAtual['C2_SEQUEN'] 	:= _SC2->C2_SEQUEN
+		oDadosAtual['C2_PRODUTO'] 	:= _SC2->C2_PRODUTO
+
+		aAdd(aDados,oDadosAtual)
+
+		_SC2->(DbSkip())
+	End
+
+	_SC2->(DbCloseArea())
+
+	oJsonRetorno := JsonObject():New()
+
+	oJsonRetorno['dados'] := aDados
+
+Return oJsonRetorno
+
+Static Function MontaConsulta(cNumero, cItem)
+
+	Local cQuery := "" as Character
+
+	cQuery += " SELECT C2_FILIAL, C2_NUM, C2_ITEM, C2_SEQUEN, C2_PRODUTO FROM " + RetSqlName("SC2") + " "
+	cQuery += " WHERE D_E_L_E_T_ = ' ' "
+	cQuery += " AND C2_FILIAL = '" + xFilial("SC2") + "' "
+	cQuery += " AND C2_NUM = '" + cNumero + "' "
+	cQuery += " AND C2_ITEM = '" + cItem + "' "
+
+Return cQuery

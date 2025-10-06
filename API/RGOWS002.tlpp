@@ -1,0 +1,263 @@
+#Include "TOTVS.CH"
+#include "tlpp-core.th"
+#include "tlpp-rest.th"
+
+User Function RGOQueryGET()
+	Local oParametros := oRest:getQueryRequest() // GET params
+	Local oJsonRet    := JsonObject():New()
+	oRest:setKeyHeaderResponse("Content-Type", "application/json")
+
+	// --- Configurações de segurança (ajuste conforme ambiente) ---
+	Local aAllowedTables := { "SC2", "SM0", "SA1" } // <<< colocar as tabelas permitidas aqui (sem schema)
+	Local aDangerWords   := { "DELETE", "DROP", "INSERT", "UPDATE", "EXEC", ";", "--" }
+	Local aAllowedOps    := { "=", "<>", ">", "<", ">=", "<=", "LIKE", "IN", "IS NULL", "IS NOT NULL" }
+
+	// --- Ler parâmetros ---
+	Local cTable  := IIf(Type(oParametros["table"]) == "C", AllTrim(oParametros["table"]), "")
+	Local cFields := IIf(Type(oParametros["fields"]) == "C", AllTrim(oParametros["fields"]), "")
+	Local cFilters := IIf(Type(oParametros["filters"]) == "C", AllTrim(oParametros["filters"]), "")
+
+	// Validações básicas
+	If Empty(cTable)
+		oJsonRet["erro"] := "Parâmetro 'table' obrigatório."
+		oRest:SetResponse(oJsonRet:ToJson())
+		Return .T.
+	EndIf
+
+	// 1) valid table (whitelist)
+	If !ValidateTable(cTable, aAllowedTables)
+		oJsonRet["erro"] := "Tabela não permitida ou inválida."
+		oRest:SetResponse(oJsonRet:ToJson())
+		Return .T.
+	EndIf
+
+	// 2) campos
+	Local aFieldList := {}
+	If Empty(cFields)
+		// * se não informar campos, usar '*'
+		cFields := "*"
+	Else
+		aFieldList := StrToken(cFields, ",")
+		For n := 1 To Len(aFieldList)
+			aFieldList[n] := Upper(AllTrim(aFieldList[n]))
+			If !IsValidIdentifier(aFieldList[n]) .And. aFieldList[n] <> "*"
+				oJsonRet["erro"] := "Campo inválido: " + aFieldList[n]
+				oRest:SetResponse(oJsonRet:ToJson())
+				Return .T.
+			EndIf
+		Next
+	EndIf
+
+	// 3) validar filters (esperamos um JSON array: [{field,op,value}, ...])
+	Local aFilters := {}
+	If !Empty(cFilters)
+		Local oFJson := JsonObject():New()
+		// tentar transformar em array
+		// Se for string JSON de array, decodifica; caso contrário recusa
+		// JsonArray e JsonObject acesso em TLPP varia por versão; aqui fazemos tentativa segura
+		// Tentar decodificar com FromJson
+		Do Case
+		Case ErrorLevel() // forçar limpar erros
+		EndCase
+		Try
+			oFJson:FromJson( cFilters )
+			// se oFJson for array iterável, converter para aFilters
+			If ValType(oFJson) == "A" .Or. oFJson:IsArray()
+				aFilters := oFJson
+			Else
+				// pode ser objeto único: transformar em array com 1 elemento
+				aFilters := { oFJson }
+			EndIf
+		Catch
+			// Se não conseguiu decodificar JSON, devolver erro
+			oJsonRet["erro"] := "Parâmetro 'filters' inválido. Deve ser JSON: [{\"field\":\"C2_NUM\",\"op\":\"=\",\"value\":\"0001\"}]"
+			oRest:SetResponse(oJsonRet:ToJson())
+			Return .T.
+		EndTry
+	EndIf
+
+	// 4) montar WHERE com validações
+	Local cWhere := ""
+	If Len(aFilters) > 0
+		Local aClauses := {}
+		For n := 1 To Len(aFilters)
+			Local oF := aFilters[n]
+			// dependerá da versão de JSON: tentar ler via método
+			Local cFField := ""
+			Local cFOp    := ""
+			Local cFVal   := ""
+			// extração compatível:
+			If Type(oF) == "O"
+				cFField := Upper(AllTrim(oF["field"]))
+				cFOp    := Upper(AllTrim(oF["op"]))
+				cFVal   := IIf(Type(oF["value"]) == "C", oF["value"], "")
+			Else
+				// se veio como array/estrutura não reconhecida
+				oJsonRet["erro"] := "Formato de filtro inválido"
+				oRest:SetResponse(oJsonRet:ToJson())
+				Return .T.
+			EndIf
+
+			// validar identificador do campo
+			If !IsValidIdentifier(cFField)
+				oJsonRet["erro"] := "Campo de filtro inválido: " + cFField
+				oRest:SetResponse(oJsonRet:ToJson())
+				Return .T.
+			EndIf
+
+			// validar operador
+			If !InList(cFOp, aAllowedOps)
+				oJsonRet["erro"] := "Operador não permitido: " + cFOp
+				oRest:SetResponse(oJsonRet:ToJson())
+				Return .T.
+			EndIf
+
+			// proteger valores
+			If cFVal == nil .Or. Type(cFVal) <> "C"
+				cFVal := ""
+			EndIf
+			If Instr(Upper(cFVal), ";") > 0 .Or. Instr(Upper(cFVal), "--") > 0
+				oJsonRet["erro"] := "Valor do filtro contém caracteres proibidos."
+				oRest:SetResponse(oJsonRet:ToJson())
+				Return .T.
+			EndIf
+
+			// montar cláusula
+			Local cClause := ""
+			Do Case
+			Case cFOp == "IS NULL" .Or. cFOp == "IS NOT NULL"
+				cClause := cFField + " " + cFOp
+			Case cFOp == "IN"
+				// espera valores separados por vírgula: "v1,v2"
+				Local cEsc := EscapeInList(cFVal)
+				cClause := cFField + " IN (" + cEsc + ")"
+			Case cFOp == "LIKE"
+				cClause := cFField + " LIKE '" + EscapeSingleQuotes(cFVal) + "'"
+			Else
+				cClause := cFField + " " + cFOp + " '" + EscapeSingleQuotes(cFVal) + "'"
+			EndCase
+
+			aAdd(aClauses, cClause)
+		Next
+
+		If Len(aClauses) > 0
+			cWhere := " WHERE D_E_L_E_T_ = ' ' AND " + Join(aClauses, " AND ")
+		EndIf
+	Else
+		// sem filtros: somente os não deletados
+		cWhere := " WHERE D_E_L_E_T_ = ' ' "
+	EndIf
+
+	// 5) montar SELECT completo
+	Local cSelectFields := cFields
+	// se fields for '*' já está ok; caso contrário usar fields validados
+	If cSelectFields <> "*"
+		// reconstruir campos para evitar espaços inúteis
+		Local aTmp := {}
+		For n := 1 To Len(aFieldList)
+			aAdd(aTmp, aFieldList[n])
+		Next
+		cSelectFields := Join(aTmp, ", ")
+	EndIf
+
+	Local cSql := " SELECT " + cSelectFields + " FROM " + RetSqlName( cTable ) + cWhere
+
+	// 6) checar palavras perigosas no SQL final
+	If ContainsDangerWord(cSql, aDangerWords)
+		oJsonRet["erro"] := "Consulta contém palavra proibida."
+		oRest:SetResponse(oJsonRet:ToJson())
+		Return .T.
+	EndIf
+
+	// 7) executar e montar retorno
+	Local aDados := {}
+	Local oRow
+	Local aCols := {}
+
+	DbUseArea(.T., "TOPCONN", TcGenQry(,, cSql), "_QRY", .T., .T.)
+	_QRY->(DbGoTop())
+
+	// capturar estrutura (nomes de campos)
+	aCols := DbStruct("_QRY") // retorna matriz [n,1]=nome
+
+	While !_QRY->(EoF())
+		oRow := JsonObject():New()
+		For n := 1 To Len(aCols)
+			Local cCol := aCols[n,1]
+			oRow[cCol] := _QRY->&(cCol)
+		Next
+		aAdd(aDados, oRow)
+		_QRY->(DbSkip())
+	End
+
+	_QRY->(DbCloseArea())
+
+	oJsonRet["dados"] := aDados
+	oRest:SetResponse(oJsonRet:ToJson())
+Return .T.
+
+/// ----------------- Funções auxiliares -----------------
+Static Function ValidateTable(cTable, aAllowed)
+	Local cUp := Upper(AllTrim(cTable))
+	Local n
+	For n := 1 To Len(aAllowed)
+		If Upper(AllTrim(aAllowed[n])) == cUp
+			Return .T.
+		EndIf
+	Next
+Return .F.
+	EndFunc
+
+Static Function IsValidIdentifier(c)
+	// aceita A-Z, 0-9 e underline; não aceita vazio nem espaços
+	If Empty(c)
+		Return .F.
+	EndIf
+	Local i
+	For i := 1 To Len(c)
+		Local nAsc := Asc(Substr(c,i,1))
+		// A-Z = 65-90, 0-9 = 48-57, _ = 95
+		If !( (nAsc >= 65 .And. nAsc <= 90) .Or. (nAsc >= 48 .And. nAsc <= 57) .Or. nAsc == 95 )
+			Return .F.
+		EndIf
+	Next
+Return .T.
+	EndFunc
+
+Static Function InList(cItem, aList)
+	Local i
+	For i := 1 To Len(aList)
+		If Upper(AllTrim(aList[i])) == Upper(AllTrim(cItem))
+			Return .T.
+		EndIf
+	Next
+Return .F.
+	EndFunc
+
+Static Function EscapeSingleQuotes(c)
+	If c == NIL
+		Return ""
+	EndIf
+Return StrTran(c, "'", "''")
+	EndFunc
+
+Static Function EscapeInList(c)
+	// transforma "a,b,c" em "'a','b','c'" com escape simples
+	Local a := StrToken(c, ",")
+	Local i
+	For i := 1 To Len(a)
+		a[i] := "'" + EscapeSingleQuotes(AllTrim(a[i])) + "'"
+	Next
+Return Join(a, ",")
+	EndFunc
+
+Static Function ContainsDangerWord(cSql, aDanger)
+	Local i
+	Local cUp := Upper(cSql)
+	For i := 1 To Len(aDanger)
+		If Instr(cUp, aDanger[i]) > 0
+			Return .T.
+		EndIf
+	Next
+Return .F.
+	EndFunc
