@@ -177,14 +177,14 @@ Static Function PrintHead()
 	_oPrinter:SayAlign(020, 400, "Data da Impressão: "+DToC(date()), _oFont10, 145 ,, , 0, 0)
 	_oPrinter:SayAlign(040, 400, "Reimpressão: "+Alltrim(cCombo1), _oFont10, 145 ,, , 0, 0)
 
-	_oPrinter:Code128(060, 235, (cAliasSC2)->(C2_NUM) + (cAliasSC2)->(C2_ITEM) + (cAliasSC2)->(C2_SEQUEN), 100, 020, .F., , 100 )
+	_oPrinter:Code128(060, 235, (cAliasSC2)->(C2_NUM) + (cAliasSC2)->(C2_ITEM) + (cAliasSC2)->(C2_SEQUEN), 1, 25, .T., _oFont10, /* 100 */ )
 
 	_oPrinter:SayAlign(080, 020, "Produto: "+AllTrim((cAliasSC2)->(C2_PRODUTO)), _oFont10B, 525 ,, , 0, 0)
 	_oPrinter:SayAlign(080, 400, "QUANT: ", _oFont10B, 145 ,, , 0, 0)
-	_oPrinter:SayAlign(080, 370, CVALTOCHAR((cAliasSC2)->(C2_QUANT)), _oFont20B, 125 ,, , 1, 0)
+	_oPrinter:SayAlign(080, 370, CVALTOCHAR((cAliasSC2)->(C2_QUANT)), _oFont32B, 125 ,, , 1, 0)
 	_oPrinter:SayAlign(095, 020, "Descrição: "+AllTrim(SB1->B1_DESC), _oFont10B, 525 ,, , 0, 0)
 	_oPrinter:SayAlign(110, 020, "Pedido de Venda: "+AllTrim((cAliasSC2)->(C2_PEDIDO)+" - "+SA1->A1_NOME), _oFont10B, 525 ,, , 0, 0)
-	_oPrinter:SayAlign(125, 020, "Observação da Ordem: "+AllTrim((cAliasSC2)->(C2_OBS)), _oFont10, 525 ,, , 0, 0)
+	_oPrinter:SayAlign(125, 020, /* "Observação da Ordem: "+ */AllTrim((cAliasSC2)->(C2_OBS)), _oFont14, 525 ,, , 0, 0)
 
 Return
 
@@ -254,26 +254,18 @@ Static Function ItensOP()
 
 		_oPrinter:SayAlign(_nLine, 020 , "Operação: "+alltrim(SG2->G2_OPERAC) , _oFont10B, 525, , , 0, 0)
 
-
 		_nLine+=10
 
 		SH1->(MsSeek(FwxFilial("SH1") + SG2->G2_RECURSO))
 
 		_oPrinter:SayAlign(_nLine, 020 , AllTrim(SG2->G2_RECURSO)+ " - "+ALLTRIM(SH1->H1_DESCRI) , _oFont14B, 525, , , 0, 0)
-
 		_oPrinter:SayAlign(_nLine, 280 , "Tempo Total: "+Transform(SG2->G2_TEMPAD*(cAliasSC2)->(C2_QUANT) ,"@E 99,999.9999")  , _oFont10B, 100, , , 0, 0)
-
-		_oPrinter:Code128(_nLine, 420, (cAliasSC2)->(C2_NUM) + (cAliasSC2)->(C2_ITEM) + (cAliasSC2)->(C2_SEQUEN), 100, 020, .F., , 100 )
-
+		_oPrinter:Code128(_nLine, 420, AllTrim(SG2->G2_RECURSO), 1, 22, .T., _oFont09, /* 100 */ )
 
 		_nLine +=15
 
 		_oPrinter:SayAlign(_nLine, 280 , "Tempo Cronometrado: "+IIF(SG2->G2_ZTCRO=='S',"SIM","NÃO") , _oFont10B, 150, , , 0, 0)
-		
-		
-		
 
-		
 		if !empty(SG2->G2_ZOBSE)
 			aObs := _MSG(alltrim(SG2->G2_ZOBSE),40)
 			For nX :=1 to Len(aObs)
@@ -291,132 +283,62 @@ Static Function ItensOP()
 
 		_nLine += 20
 
-		
+
 		_oPrinter:Line(_nLine, 020, _nLine, 545)
 
 
-		_nLine += 5
-
-		//IMPRESSÃO COMPONENTE X OPERAÇÃO
-		SGF->(DbSetOrder(1))
-		If SGF->(MsSeek(FwxFilial("SGF") + SG2->G2_PRODUTO + SG2->G2_CODIGO + SG2->G2_OPERAC))
-			If _nLine >= 750
-				RodapeOP()
-				_oPrinter:EndPage()
-				_oPrinter:StartPage()
-				nPage += 1
-				_nLine := 010
-			EndIf
-			nTop += 10
-			nBottom := nTop + 30
-
-			_oPrinter:SayAlign(_nLine, 020 , "Consumos01: " , _oFont10B, 525, , , 0, 0)
-			_nLine += 15
-			_oPrinter:SayAlign(_nLine, 020 , "Código " , _oFont10B, 50, , , 0, 0)
-			_oPrinter:SayAlign(_nLine, 070 , "Descrição " , _oFont10B, 230, , , 0, 0)
-			_oPrinter:SayAlign(_nLine, 300 , "Endereço OP: " , _oFont10B, 120, , , 0, 0)
-			_oPrinter:SayAlign(_nLine, 420 , "Un " , _oFont10B, 50, , , 0, 0)
-			_oPrinter:SayAlign(_nLine, 470 , "Quantidade " , _oFont10B, 100, , , 0, 0)
-			_nLine += 15
-
-			While !SGF->(EOF()) .AND. SG2->G2_PRODUTO == SGF->GF_PRODUTO .AND. SG2->G2_CODIGO == SGF->GF_ROTEIRO .AND. SG2->G2_OPERAC == SGF->GF_OPERAC
-
-				_oPrinter:SayAlign(_nLine, 020 , SGF->GF_COMP , _oFont10B, 50, , , 0, 0)
-				SB1->(MsSeek(FwxFilial("SB1") +SGF->GF_COMP))
-				_oPrinter:SayAlign(_nLine, 070 , ALLTRIM(SB1->B1_DESC), _oFont10B, 230, , , 0, 0)
-				_oPrinter:SayAlign(_nLine, 300 , ALLTRIM(SB1->B1_ZENDOP) , _oFont10B, 120, , , 0, 0)
-				_oPrinter:SayAlign(_nLine, 420 , SB1->B1_UM , _oFont10B, 50, , , 0, 0)
-				SG1->(DbSetOrder(2))
-				SG1->(MsSeek(FwxFilial("SG1") + SGF->GF_COMP + SG2->G2_PRODUTO))
-				_oPrinter:SayAlign(_nLine, 470 , Transform(SG1->G1_QUANT*(cAliasSC2)->(C2_QUANT) ,"@E 99,999.9999") , _oFont10B, 100, , , 0, 0)
-				_nLine += 15
-
-				SGF->(DBSKIP())
-			END
-
-			_oPrinter:SayAlign(_nLine, 020 , "Assinatura do Recebedor: ____________________", _oFont10B, 100, , , 0, 0)
-
-			_nLine += 15
-			
-			
-			_oPrinter:Line(_nLine, 020, _nLine, 545)
-
-			_nLine += 5
-
-		ELSE //SE NÃO TIVER AMARRAÇÃO OPERAÇÃO X COMPONENTE, BUSCA POR ESTRUTURA DE PRODUTOS
-
-			If _nLine >= 750
-				RodapeOP()
-				_oPrinter:EndPage()
-				_oPrinter:StartPage()
-				nPage += 1
-				_nLine := 010
-			EndIf
-			nTop += 10
-			nBottom := nTop + 30
-
-			_oPrinter:SayAlign(_nLine, 020 , "Consumos02: " , _oFont10B, 525, , , 0, 0)
-			_nLine += 15
-			_oPrinter:SayAlign(_nLine, 020 , "Código " , _oFont10B, 50, , , 0, 0)
-			_oPrinter:SayAlign(_nLine, 070 , "Descrição " , _oFont10B, 420, , , 0, 0)
-			_oPrinter:SayAlign(_nLine, 300 , "Endereço OP: " , _oFont10B, 120, , , 0, 0)
-			_oPrinter:SayAlign(_nLine, 420 , "Un " , _oFont10B, 50, , , 0, 0)
-			_oPrinter:SayAlign(_nLine, 470 , "Quantidade " , _oFont10B, 100, , , 0, 0)
-			_nLine += 15
-
-			// SG1->(DbSetOrder(1))
-			// If SG1->(MsSeek(FwxFilial("SG1") + (cAliasSC2)->(C2_PRODUTO)))
-
-			// 	While !SG1->(EOF()) .AND. SG2->G2_PRODUTO == SG1->G1_COD
-
-			// 		_oPrinter:SayAlign(_nLine, 020 , SG1->G1_COMP , _oFont10B, 50, , , 0, 0)
-			// 		SB1->(MsSeek(FwxFilial("SB1") +SG1->G1_COMP))
-			// 		_oPrinter:SayAlign(_nLine, 070 , ALLTRIM(SB1->B1_DESC), _oFont10B, 230, , , 0, 0)
-			// 		_oPrinter:SayAlign(_nLine, 300 , ALLTRIM(SB1->B1_ZENDOP) , _oFont10B, 120, , , 0, 0)
-			// 		_oPrinter:SayAlign(_nLine, 420 , SB1->B1_UM , _oFont10B, 50, , , 0, 0)
-			// 		SG1->(MsSeek(FwxFilial("SG1") + SG1->G1_COMP))
-			// 		_oPrinter:SayAlign(_nLine, 470 , Transform(SG1->G1_QUANT*(cAliasSC2)->(C2_QUANT) ,"@E 99,999.9999") , _oFont10B, 100, , , 0, 0)
-			// 		_nLine += 15
-
-			// 		SG1->(DBSKIP())
-			// 	END
-
-			// ENDIF
-
-			SD4->(DbSetOrder(2))
-			If SD4->(MsSeek(FwxFilial("SD4") + (cAliasSC2)->(C2_NUM + C2_ITEM + C2_SEQUEN)))
-
-				While !SD4->(EOF()) .AND. SG2->G2_PRODUTO == SD4->D4_PRODUTO .and. AllTrim(SD4->D4_OP) == (cAliasSC2)->(C2_NUM + C2_ITEM + C2_SEQUEN)
-
-					_oPrinter:SayAlign(_nLine, 020 , SD4->D4_COD , _oFont10B, 50, , , 0, 0)
-					SB1->(MsSeek(FwxFilial("SB1") + SD4->D4_COD))
-					_oPrinter:SayAlign(_nLine, 070 , ALLTRIM(SB1->B1_DESC), _oFont10B, 230, , , 0, 0)
-					_oPrinter:SayAlign(_nLine, 300 , ALLTRIM(SB1->B1_ZENDOP) , _oFont10B, 120, , , 0, 0)
-					_oPrinter:SayAlign(_nLine, 420 , SB1->B1_UM , _oFont10B, 50, , , 0, 0)
-					// SG1->(MsSeek(FwxFilial("SG1") + SG1->G1_COMP))
-					_oPrinter:SayAlign(_nLine, 470 , Transform(SD4->D4_QUANT*(cAliasSC2)->(C2_QUANT) ,"@E 99,999.9999") , _oFont10B, 100, , , 0, 0)
-					_nLine += 15
-
-					SD4->(DBSKIP())
-				END
-
-			ENDIF
-
-			_oPrinter:SayAlign(_nLine, 020 , "Assinatura do Recebedor: ____________________", _oFont10B, 100, , , 0, 0)
-
-			_nLine += 15
-			_oPrinter:Line(_nLine, 020, _nLine, 545)
-
-			_nLine += 5
-		Endif
-
+		_nLine += 15
+		// _nLine += 5
 
 		SG2->(DBSkip())
 	End
 	//Next
 
+	_nLine += 15
 
+	SD4->(DbSetOrder(2))
+	If SD4->(MsSeek(FwxFilial("SD4") + (cAliasSC2)->(C2_NUM + C2_ITEM + C2_SEQUEN)))
 
+		If _nLine >= 750
+			RodapeOP()
+			_oPrinter:EndPage()
+			_oPrinter:StartPage()
+			nPage += 1
+			_nLine := 010
+		EndIf
+		nTop += 10
+		nBottom := nTop + 30
+
+		_oPrinter:SayAlign(_nLine, 020 , "Consumos: " , _oFont10B, 525, , , 0, 0)
+		_nLine += 15
+		_oPrinter:SayAlign(_nLine, 020 , "Código " , _oFont10B, 50, , , 0, 0)
+		_oPrinter:SayAlign(_nLine, 070 , "Descrição " , _oFont10B, 420, , , 0, 0)
+		_oPrinter:SayAlign(_nLine, 300 , "Endereço OP: " , _oFont10B, 120, , , 0, 0)
+		_oPrinter:SayAlign(_nLine, 420 , "Un " , _oFont10B, 50, , , 0, 0)
+		_oPrinter:SayAlign(_nLine, 470 , "Quantidade " , _oFont10B, 100, , , 0, 0)
+		_nLine += 15
+
+		While !SD4->(EOF()) .AND. AllTrim(SD4->D4_OP) == (cAliasSC2)->(C2_NUM + C2_ITEM + C2_SEQUEN)
+
+			_oPrinter:SayAlign(_nLine, 020 , SD4->D4_COD , _oFont10, 50, , , 0, 0)
+			SB1->(MsSeek(FwxFilial("SB1") + SD4->D4_COD))
+			_oPrinter:SayAlign(_nLine, 070 , ALLTRIM(SB1->B1_DESC), _oFont10, 230, , , 0, 0)
+			_oPrinter:SayAlign(_nLine, 300 , ALLTRIM(SB1->B1_ZENDOP) , _oFont10, 120, , , 0, 0)
+			_oPrinter:SayAlign(_nLine, 420 , SB1->B1_UM , _oFont10, 50, , , 0, 0)
+			// SG1->(MsSeek(FwxFilial("SG1") + SG1->G1_COMP))
+			_oPrinter:SayAlign(_nLine, 470 , Transform(SD4->D4_QUANT*(cAliasSC2)->(C2_QUANT) ,"@E 99,999.9999") , _oFont10, 100, , , 0, 0)
+			_nLine += 15
+
+			SD4->(DBSKIP())
+		END
+
+	ENDIF
+
+	_nLine += 15
+	_oPrinter:Line(_nLine, 020, _nLine, 545)
+
+	_nLine += 5
+	// Endif
 
 Return
 
