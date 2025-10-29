@@ -113,7 +113,7 @@ USER Function FB101EST()
 				SB1->(MsSeek(xFilial("SB1")+aEstrutura[i,3]))
 				if SB1->B1_TIPO $ ('PA|PI|SV|BN')		// ADICIONAR SERVIÇOS E OUTROS QUE NAO CONTROLAM ESTOQUE
 					Loop
-				else
+				else	
 					aAdd(aMov, SB1->B1_COD)
 				endif
 

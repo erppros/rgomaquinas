@@ -388,7 +388,8 @@ Static Function ItensOP()
 			_oPrinter:SayAlign(_nLine, 300 , ALLTRIM(SB1->B1_ZENDOP) , _oFont10, 120, , , 0, 0)
 			_oPrinter:SayAlign(_nLine, 420 , SB1->B1_UM , _oFont10, 50, , , 0, 0)
 			// SG1->(MsSeek(FwxFilial("SG1") + SG1->G1_COMP))
-			_oPrinter:SayAlign(_nLine, 470 , Transform(SD4->D4_QUANT*(cAliasSC2)->(C2_QUANT) ,"@E 99,999.9999") , _oFont10, 100, , , 0, 0)
+			//_oPrinter:SayAlign(_nLine, 470 , Transform(SD4->D4_QUANT*(cAliasSC2)->(C2_QUANT) ,"@E 99,999.9999") , _oFont10, 100, , , 0, 0)
+			_oPrinter:SayAlign(_nLine, 470 , Transform(SD4->D4_QUANT ,"@E 99,999.9999") , _oFont10, 100, , , 0, 0) //D4_QUANT JÁ VEM MULTIPLICADO PELA QUANTIDADE DA OP
 			_nLine += 15
 
 			aAdd(aConsIn, SD4->D4_COD)
