@@ -17,6 +17,7 @@ USER Function FB101EST()
 	Local cLocaliz     := Criavar("D3_LOCALIZ",.F.)
 	Local cNumSeri     := Criavar("D3_NUMSERI",.F.)
 	Local lItemNeg     := .F.
+	Local aMov := {}
 
 	Private nQtdOrigEs := 1
 	Private cProdEst   := Criavar("D3_COD",.F.)
@@ -78,9 +79,9 @@ USER Function FB101EST()
 					Else
 						AADD(aEstrutura,{NIL,NIL,SD4->D4_COD,Min(SD4->D4_QUANT,(SD4->D4_QTDEORI*nPercOp)),SD4->D4_TRT,SD4->D4_LOTECTL,SD4->D4_NUMLOTE,cLocaliz,cNumSeri,SD4->D4_LOCAL,SD4->D4_DTVALID})
 					EndIf
-				/* Else
+				Else
 					AADD(aEstrutura,{NIL,NIL,SD4->D4_COD,Min(SD4->D4_QTDEORI*nPercOp,SD4->D4_QTDEORI-SD4->D4_QUANT),SD4->D4_TRT,SD4->D4_LOTECTL,SD4->D4_NUMLOTE,cLocaliz,cNumSeri,SD4->D4_LOCAL,SD4->D4_DTVALID})
-				EndIf */
+				EndIf
 				dbSelectArea("SD4")
 				dbSkip()
 			End
@@ -107,6 +108,15 @@ USER Function FB101EST()
 		If Len(aEstrutura) > 0
 			For i:=1 to Len(aEstrutura)
 				// Se a primeira linha esta em branco remove a mesma do acols
+
+				SB1->(dbSetOrder(1))
+				SB1->(MsSeek(xFilial("SB1")+aEstrutura[i,3]))
+				if SB1->B1_TIPO $ ('PA|PI|SV|BN')		// ADICIONAR SERVIÇOS E OUTROS QUE NAO CONTROLAM ESTOQUE
+					Loop
+				else
+					aAdd(aMov, SB1->B1_COD)
+				endif
+
 				If Empty(aCols[1,nPosCod])
 					ADEL(aCols,1)
 					ASIZE(aCols,Len(aCols)-1)
@@ -154,8 +164,6 @@ USER Function FB101EST()
 				//EndIf
 
 				// Preenche campos especificos
-				SB1->(dbSetOrder(1))
-				SB1->(MsSeek(xFilial("SB1")+aEstrutura[i,3]))
 				GDFieldPut("D3_COD",aEstrutura[i,3],Len(aCols))
 				GDFieldPut("D3_DESCRI",SB1->B1_DESC,Len(aCols))
 				GDFieldPut("D3_UM",SB1->B1_UM,Len(aCols))
@@ -166,9 +174,9 @@ USER Function FB101EST()
 				GDFieldPut("D3_ITEMCTA",SB1->B1_ITEMCC,Len(aCols))
 				// Preenche o numero da OP
 				If !Empty(cOpEst)
-					If aEstrutura[i,10]# NIL .AND. !Empty(aEstrutura[i,10])
-						GDFieldPut("D3_LOCAL",aEstrutura[i,10],Len(aCols))
-					EndIf
+					// If aEstrutura[i,10]# NIL .AND. !Empty(aEstrutura[i,10])
+					// 	GDFieldPut("D3_LOCAL",aEstrutura[i,10],Len(aCols))
+					// EndIf
 					GDFieldPut("D3_OP",cOpEst,Len(aCols))
 					GDFieldPut("D3_TRT",aEstrutura[i,5],Len(aCols))
 					GDFieldPut("D3_LOTECTL",aEstrutura[i,6],Len(aCols))
@@ -206,6 +214,10 @@ USER Function FB101EST()
 			Next i
 		EndIf
 	EndIf
+
+	if Empty(aMov)
+		MsgAlert('Nenhum produto incluido a lista devido a tipagem.', 'Atenção')
+	endif
 
 	If lItemNeg
 		If cTM > '500'

@@ -1,0 +1,72 @@
+#INCLUDE 'PROTHEUS.CH'
+
+
+USER FUNCTION MT681INC()
+
+	Local aAreaSH6 := SH6->(GetArea())
+	Local aAreaSG2 := SG2->(GetArea())
+	Local aAreaSB1 := SB1->(GetArea())
+
+	Local nQtdProd := 0
+	Local nQtdPad  := 0
+	Local nTempPad := 0
+	Local nRelQtd := 0
+	Local nRelTempo := 0
+	Local nInt := 0
+	Local nDec := 0
+	Local cCalcResult := ''
+
+	SB1->(DbSetOrder(1))
+	SG2->(DbSetOrder(1))
+	If SB1->(DbSeek(xFilial('SB1') + SH6->H6_PRODUTO))
+
+		If SG2->(DbSeek(xFilial('SG2') + SH6->H6_PRODUTO + SB1->B1_OPERPAD + SH6->H6_OPERAC))
+
+			nQtdProd := SH6->H6_QTDPROD
+			nQtdPad  := SG2->G2_LOTEPAD
+			nTempPad := SG2->G2_TEMPAD
+
+			nRelQtd := nQtdProd / nQtdPad
+
+			nRelTempo := nRelQtd * nTempPad
+
+			nInt :=  Int(nRelTempo)
+			nDec := nRelTempo - nInt
+
+			if Getmv('MV_TPHR') == 'C'
+				cCalcResult := Str(nInt + Round((nDec / 1.67), 2))
+			Elseif GetMv('MV_TPHR') == 'N'
+				cCalcResult := Str(nInt + Round((nDec), 2))
+			endif
+			// MsgAlert(cCalcResult)
+			cCalcResult := AllTrim(cCalcResult)
+			// MsgAlert(cCalcResult)
+			cCalcResult := Replace(cCalcResult, '.', ':')
+			// MsgAlert(cCalcResult)
+			// MsgAlert(SubStr(cCalcResult, at(':', cCalcResult)+1))
+			if Len(SubStr(cCalcResult, at(':', cCalcResult)+1)) > 1
+			else
+				cCalcResult += '0'
+			endif
+			// MsgAlert(cCalcResult)
+			cCalcResult := PadL(cCalcResult, 6, '0')
+			// MsgAlert(cCalcResult)
+
+
+			if empty(SH6->H6_TEMPO) .or. Val(Replace(SH6->H6_TEMPO, ':', '')) == 0
+				RecLock('SH6', .F.)
+				SH6->H6_TEMPO := cCalcResult
+				SH6->(MsUnlock())
+			endif
+
+		endif
+
+	endif
+
+
+	RestArea(aAreaSH6)
+	RestArea(aAreaSG2)
+	RestArea(aAreaSB1)
+
+Return
+
