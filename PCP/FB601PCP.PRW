@@ -19,7 +19,7 @@ User Function FB601PCP()
 	Private cOPate 		:= SPACE(13)
 	Private cCombo1     := ""
 	Private aItems      := {"SIM","NÃO"}
-	Private nPage  		:= 1
+	Private nPage  		:= 0
 
 	Private cAliasSC2 	:= GetNextAlias()
 	//Private cPerg := PADR( ( "FB601PCP"  ), LEN( SX1->X1_GRUPO  ), ""  )
@@ -122,7 +122,7 @@ Static Function RunPrint()
 	Private _cObsMemo := ""
 
 	While !( (cAliasSC2)->(EOF()) )
-
+		nPage += 1
 		PrintHead()
 
 		DetailsOP()
@@ -175,9 +175,10 @@ Static Function PrintHead()
 
 	_oPrinter:SayAlign(020, 020, "Ordem de produção: "+(cAliasSC2)->(C2_NUM + C2_ITEM + C2_SEQUEN), _oFont10B, 525 ,, , 2, 0)
 	_oPrinter:SayAlign(020, 400, "Data da Impressão: "+DToC(date()), _oFont10, 145 ,, , 0, 0)
+	_oPrinter:SayAlign(030, 400, "Hora da Impressão: " +SUBSTR(TIME(), 1, 5), _oFont10, 145 ,, , 0, 0)
 	_oPrinter:SayAlign(040, 400, "Reimpressão: "+Alltrim(cCombo1), _oFont10, 145 ,, , 0, 0)
 
-	_oPrinter:Code128(060, 235, (cAliasSC2)->(C2_NUM) + (cAliasSC2)->(C2_ITEM) + (cAliasSC2)->(C2_SEQUEN), 1, 25, .T., _oFont10, /* 100 */ )
+	_oPrinter:Code128(040, 220, (cAliasSC2)->(C2_NUM) + (cAliasSC2)->(C2_ITEM) + (cAliasSC2)->(C2_SEQUEN), 1, 25, .T., _oFont10B, /* 100 */ )
 
 	_oPrinter:SayAlign(080, 020, "Produto: "+AllTrim((cAliasSC2)->(C2_PRODUTO)), _oFont10B, 525 ,, , 0, 0)
 	_oPrinter:SayAlign(080, 400, "QUANT: ", _oFont10B, 145 ,, , 0, 0)
@@ -212,7 +213,7 @@ Static Function DetailsOP()
 	_nLine := 150
 
 
-	_oPrinter:SayAlign(_nLine, 020, "Código Pai: "+fProdPai((cAliasSC2)->(C2_NUM),(cAliasSC2)->(C2_ITEM)), _oFont10, 525 ,, , 0, 0)
+	_oPrinter:SayAlign(_nLine, 020, /* "Código Pai: " */'Produto Final: ' +fProdPai((cAliasSC2)->(C2_NUM),(cAliasSC2)->(C2_ITEM)), _oFont10, 525 ,, , 0, 0)
 
 	_nLine += 15
 	_oPrinter:Line(_nLine, 020, _nLine, 545)
@@ -234,6 +235,7 @@ Static Function ItensOP()
 	Local nTop 		:= 0
 	Local nBottom 	:= 0
 	Local nX 		:= 0
+	Local aConsIn	:= {}
 	//Local cObsG2    := ""
 
 	//for nx :=1 to 10
@@ -242,6 +244,64 @@ Static Function ItensOP()
 	SH1->(DbSetOrder(1))
 	SB1->(DBSETORDER(1))
 	SG2->(MsSeek(FwxFilial("SG2") + (cAliasSC2)->(C2_PRODUTO) + (cAliasSC2)->(C2_ROTEIRO)))
+
+
+	ConsumoInverso(aConsIn)
+
+	if !QRYIN->(EoF())
+		_oPrinter:SayAlign(_nLine, 020 , "Estrutura Inversa: " , _oFont10B, 525, , , 0, 0)
+		_nLine += 15
+
+		_oPrinter:SayAlign(_nLine, 020 , 'Nível' 			, _oFont10B, 50, , , 0, 0)
+		_oPrinter:SayAlign(_nLine, 050 , 'Componente' 			, _oFont10B, 230, , , 0, 0)
+		_oPrinter:SayAlign(_nLine, 120 , 'Desc. Componente' 	, _oFont10B, 230, , , 0, 0)
+		_oPrinter:SayAlign(_nLine, 270 , 'Onde é Usado' 			, _oFont10B, 230, , , 0, 0)
+		_oPrinter:SayAlign(_nLine, 340 , 'Desc. Onde é Usado' 			, _oFont10B, 120, , , 0, 0)
+
+		_nLine += 15
+
+	endif
+
+	While !QRYIN->(EOF())
+		If _nLine >= 750
+			RodapeOP()
+			_oPrinter:EndPage()
+			_oPrinter:StartPage()
+			nPage += 1
+			_nLine := 050
+		EndIf
+		nTop += 10
+		nBottom := nTop + 30
+
+		aDescCOMP := _MSG(AllTrim(Posicione('SB1', 1, xFilial('SB1') + QRYIN->COD_COMP, 'B1_DESC')), 30)
+		aDescPAI :=  _MSG(AllTrim(Posicione('SB1', 1, xFilial('SB1') + QRYIN->COD_PAI_NIVEL, 'B1_DESC')), 30)
+
+		_oPrinter:SayAlign(_nLine, 020 , AllTrim(Str(QRYIN->NIVEL)) 			, _oFont10, 50, , , 0, 0)
+		_oPrinter:SayAlign(_nLine, 050 , QRYIN->COD_COMP 						, _oFont10, 230, , , 0, 0)
+		_oPrinter:SayAlign(_nLine, 120 , aDescCOMP[1]		 					, _oFont10, 230, , , 0, 0)
+		_oPrinter:SayAlign(_nLine, 270 , QRYIN->COD_PAI_NIVEL 					, _oFont10, 230, , , 0, 0)
+		_oPrinter:SayAlign(_nLine, 340 , aDescPAI[1]					 		, _oFont10, 230, , , 0, 0)
+
+		for nX := 2 to iIf(Len(aDescCOMP) > Len(aDescPAI), Len(aDESCCOMP), Len(aDescPAI))
+			_nLine += 10
+			if Len(aDescCOMP) >= nX
+				_oPrinter:SayAlign(_nLine, 120 , aDescCOMP[nX]		 					, _oFont10, 230, , , 0, 0)
+			endif
+			if Len(aDescPAI) >= nX
+				_oPrinter:SayAlign(_nLine, 340 , aDescPAI[nX]					 		, _oFont10, 230, , , 0, 0)
+			endif		
+
+		next
+
+		_nLine += 15
+
+		QRYIN->(DBSKIP())
+	END
+
+	QRYIN->(DbCloseArea())
+
+	_nLine += 15
+	_oPrinter:Line(_nLine, 020, _nLine, 545)
 
 	While !SG2->(EOF()) .AND. (cAliasSC2)->(C2_PRODUTO) == SG2->G2_PRODUTO .AND. (cAliasSC2)->(C2_ROTEIRO) == SG2->G2_CODIGO
 		If _nLine >= 750
@@ -299,13 +359,7 @@ Static Function ItensOP()
 	SD4->(DbSetOrder(2))
 	If SD4->(MsSeek(FwxFilial("SD4") + (cAliasSC2)->(C2_NUM + C2_ITEM + C2_SEQUEN)))
 
-		If _nLine >= 750
-			RodapeOP()
-			_oPrinter:EndPage()
-			_oPrinter:StartPage()
-			nPage += 1
-			_nLine := 010
-		EndIf
+
 		nTop += 10
 		nBottom := nTop + 30
 
@@ -320,6 +374,14 @@ Static Function ItensOP()
 
 		While !SD4->(EOF()) .AND. AllTrim(SD4->D4_OP) == (cAliasSC2)->(C2_NUM + C2_ITEM + C2_SEQUEN)
 
+			If _nLine >= 750
+				RodapeOP()
+				_oPrinter:EndPage()
+				_oPrinter:StartPage()
+				nPage += 1
+				_nLine := 050
+			EndIf
+
 			_oPrinter:SayAlign(_nLine, 020 , SD4->D4_COD , _oFont10, 50, , , 0, 0)
 			SB1->(MsSeek(FwxFilial("SB1") + SD4->D4_COD))
 			_oPrinter:SayAlign(_nLine, 070 , ALLTRIM(SB1->B1_DESC), _oFont10, 230, , , 0, 0)
@@ -328,6 +390,8 @@ Static Function ItensOP()
 			// SG1->(MsSeek(FwxFilial("SG1") + SG1->G1_COMP))
 			_oPrinter:SayAlign(_nLine, 470 , Transform(SD4->D4_QUANT*(cAliasSC2)->(C2_QUANT) ,"@E 99,999.9999") , _oFont10, 100, , , 0, 0)
 			_nLine += 15
+
+			aAdd(aConsIn, SD4->D4_COD)
 
 			SD4->(DBSKIP())
 		END
@@ -354,8 +418,8 @@ Return
 /*/
 Static Function RodapeOP()
 	Local cUsuario 	:= UsrFullName(RetCodUsr())
-	Local dData 	:= DTOC(DATE())
-	Local nTime 	:= SUBSTR(TIME(), 1, 5)
+	// Local dData 	:= DTOC(DATE())
+	// Local nTime 	:= SUBSTR(TIME(), 1, 5)
 
 
 
@@ -365,7 +429,7 @@ Static Function RodapeOP()
 	_oPrinter:SayAlign(795, 260 , "Página " + cValToChar(nPage) + " de " + cValToChar(nTotPage), _oFont09, 070, 014, , 0, 2)
 	_oPrinter:Line(800, 310, 800, 545)
 
-	_oPrinter:SayAlign(815, 020 , "Emitido por: " + cUsuario + " em " + dData + " " + nTime, _oFont09B, 220, 014, , 0, 2)
+	_oPrinter:SayAlign(815, 020 , "Emitido por: " + cUsuario/*  + " em " + dData + " " + nTime */, _oFont09B, 220, 014, , 0, 2)
 
 	_oPrinter:SayAlign(815, 020 , "Documento das Ordens de Produção", _oFont09B, 525, 014, , 2, 0)
 
@@ -546,38 +610,126 @@ Return _aMsg
 
 Static Function PageCount()
 
-	//Local nX, nY
+	Local nX
+	Local aConsIn	:= {}
 
-	Local nTotPage := 1
+	Local nTotPage := 0
 
-	_nLine := 150
+	While !( (cAliasSC2)->(EOF()) )
 
-	//for nx :=1 to 10
-	SG2->(DbSetOrder(1))
-	SH1->(DbSetOrder(1))
-	SB1->(DBSETORDER(1))
-	SG2->(MsSeek(FwxFilial("SG2") + (cAliasSC2)->(C2_PRODUTO) + (cAliasSC2)->(C2_ROTEIRO)))
+		nTotPage += 1
 
-	While !SG2->(EOF()) .AND. (cAliasSC2)->(C2_PRODUTO) == SG2->G2_PRODUTO .AND. (cAliasSC2)->(C2_ROTEIRO) == SG2->G2_CODIGO
-		If _nLine >= 750
+		_nLine := 150
 
-			nTotPage += 1
-			_nLine := 050
-		EndIf
+		//for nx :=1 to 10
+		SG2->(DbSetOrder(1))
+		SH1->(DbSetOrder(1))
+		SB1->(DBSETORDER(1))
+		SG2->(MsSeek(FwxFilial("SG2") + (cAliasSC2)->(C2_PRODUTO) + (cAliasSC2)->(C2_ROTEIRO)))
 
-		_nLine+=10
+		ConsumoInverso(aConsIn)
 
-		SH1->(MsSeek(FwxFilial("SH1") + SG2->G2_RECURSO))
+		if !QRYIN->(EoF())
 
-		_nLine +=15
+			_nLine += 15
+
+			_nLine += 15
+
+		endif
+
+		While !QRYIN->(EOF())
+			If _nLine >= 750
+
+				nTotPage += 1
+				_nLine := 050
+			EndIf
+
+			aDescCOMP := _MSG(AllTrim(Posicione('SB1', 1, xFilial('SB1') + QRYIN->COD_COMP, 'B1_DESC')), 40)
+			aDescPAI :=  _MSG(AllTrim(Posicione('SB1', 1, xFilial('SB1') + QRYIN->COD_PAI_NIVEL, 'B1_DESC')), 40)
+
+			for nX := 2 to iIf(Len(aDescCOMP) > Len(aDescPAI), Len(aDESCCOMP), Len(aDescPAI))
+				_nLine += 10
+
+			next
+
+			_nLine += 15
+
+			QRYIN->(DBSKIP())
+		END
+
+		QRYIN->(DbCloseArea())
 
 		_nLine += 15
 
-		_nLine += 5
 
-		//IMPRESSÃO COMPONENTE X OPERAÇÃO
-		SGF->(DbSetOrder(1))
-		If SGF->(MsSeek(FwxFilial("SGF") + SG2->G2_PRODUTO + SG2->G2_CODIGO + SG2->G2_OPERAC))
+		While !SG2->(EOF()) .AND. (cAliasSC2)->(C2_PRODUTO) == SG2->G2_PRODUTO .AND. (cAliasSC2)->(C2_ROTEIRO) == SG2->G2_CODIGO
+			If _nLine >= 750
+
+				nTotPage += 1
+				_nLine := 050
+			EndIf
+
+			_nLine+=10
+
+			SH1->(MsSeek(FwxFilial("SH1") + SG2->G2_RECURSO))
+
+			_nLine +=15
+
+			if !empty(SG2->G2_ZOBSE)
+				aObs := _MSG(alltrim(SG2->G2_ZOBSE),40)
+				For nX :=1 to Len(aObs)
+
+					if nX <> Len(aObs)
+						_nLine += 15
+					endif
+
+				Next
+
+			ENDIF
+
+			_nLine += 20
+
+			_nLine += 15
+
+			SG2->(DBSkip())
+
+			_nLine += 5
+
+			//IMPRESSÃO COMPONENTE X OPERAÇÃO
+			SGF->(DbSetOrder(1))
+			If SGF->(MsSeek(FwxFilial("SGF") + SG2->G2_PRODUTO + SG2->G2_CODIGO + SG2->G2_OPERAC))
+				If _nLine >= 750
+					nTotPage += 1
+					_nLine := 050
+				EndIf
+
+				_nLine += 15
+				_nLine += 15
+
+				While !SGF->(EOF()) .AND. SG2->G2_PRODUTO == SGF->GF_PRODUTO .AND. SG2->G2_CODIGO == SGF->GF_ROTEIRO .AND. SG2->G2_OPERAC == SGF->GF_OPERAC
+
+					_nLine += 15
+
+					SGF->(DBSKIP())
+				END
+
+				_nLine += 15
+				_nLine += 5
+
+
+			Endif
+
+
+			SG2->(DBSkip())
+
+		End
+		//Next
+
+		_nLine += 15
+
+		SD4->(DbSetOrder(2))
+		If SD4->(MsSeek(FwxFilial("SD4") + (cAliasSC2)->(C2_NUM + C2_ITEM + C2_SEQUEN)))
+
 			If _nLine >= 750
 				nTotPage += 1
 				_nLine := 050
@@ -586,46 +738,27 @@ Static Function PageCount()
 			_nLine += 15
 			_nLine += 15
 
-			While !SGF->(EOF()) .AND. SG2->G2_PRODUTO == SGF->GF_PRODUTO .AND. SG2->G2_CODIGO == SGF->GF_ROTEIRO .AND. SG2->G2_OPERAC == SGF->GF_OPERAC
+			While !SD4->(EOF()) .AND. AllTrim(SD4->D4_OP) == (cAliasSC2)->(C2_NUM + C2_ITEM + C2_SEQUEN)
 
 				_nLine += 15
+				aAdd(aConsIn, SD4->D4_COD)
 
-				SGF->(DBSKIP())
+				SD4->(DBSKIP())
 			END
 
-			_nLine += 15
-			_nLine += 5
+		ENDIF
 
+		_nLine += 15
 
-		Endif
+		_nLine += 5
 
+		// Endif
 
-		SG2->(DBSkip())
-	End
-	//Next
+		(cAliasSC2)->(DbSkip())
 
-	//SE NÃO TIVER AMARRAÇÃO OPERAÇÃO X COMPONENTE, BUSCA POR ESTRUTURA DE PRODUTOS
-	SG2->(DbSetOrder(1))
-	SG2->(MsSeek(FwxFilial("SG2") +(cAliasSC2)->(C2_PRODUTO) + (cAliasSC2)->(C2_ROTEIRO)))
-	SGF->(DbSetOrder(1))
-	If !SGF->(MsSeek(FwxFilial("SGF") + (cAliasSC2)->(C2_PRODUTO)))
-		SG1->(DbSetOrder(1))
-		If SG1->(MsSeek(FwxFilial("SG1") + (cAliasSC2)->(C2_PRODUTO)))
-			If _nLine >= 750
-				nTotPage += 1
-				_nLine := 50
-			EndIf
+	end
 
-
-			While !SG1->(EOF()) .AND. SG2->G2_PRODUTO == SG1->G1_COD
-				SB1->(DbSetOrder(1))
-				SB1->(MsSeek(FwxFilial("SB1") + SG1->G1_COMP))
-				SG1->(DBSkip())
-			End
-		EndIf
-	EndIf
-
-
+	(cAliasSC2)->(DbGoTop())
 Return nTotPage
 
 
@@ -697,3 +830,81 @@ Static Function fProdPai(cNumOP,cItemOP)
 	(cAliTMP)->(DBCloseArea())
 
 Return cProdPai
+
+
+
+
+
+
+static function ConsumoInverso(aConsIn)
+
+	Local cQuery := ''
+	// Local nX := 0
+
+	cQuery += "		WITH 			ESTRUT	(	CODIGO, 		"														+ CHR(13) + CHR(10)
+	cQuery += "									COD_PAI_NIVEL, 	"														+ CHR(13) + CHR(10)
+	cQuery += "									COD_COMP, 		"														+ CHR(13) + CHR(10)
+	cQuery += "									QTD, 			"														+ CHR(13) + CHR(10)
+	cQuery += "									PERDA, 			"														+ CHR(13) + CHR(10)
+	cQuery += "									DT_INI, 		"														+ CHR(13) + CHR(10)
+	cQuery += "									DT_FIM, 		"														+ CHR(13) + CHR(10)
+	cQuery += "									NIVEL 			"														+ CHR(13) + CHR(10)
+	cQuery += "								) AS 		"																+ CHR(13) + CHR(10)
+	cQuery += "						(	SELECT			G1_COD PAI, 		"											+ CHR(13) + CHR(10)
+	cQuery += "											G1_COD, 		"												+ CHR(13) + CHR(10)
+	cQuery += "											G1_COMP, 		"												+ CHR(13) + CHR(10)
+	cQuery += "											G1_QUANT, 		"												+ CHR(13) + CHR(10)
+	cQuery += "											G1_PERDA, 		"												+ CHR(13) + CHR(10)
+	cQuery += "											G1_INI, 		"												+ CHR(13) + CHR(10)
+	cQuery += "											G1_FIM, 		"												+ CHR(13) + CHR(10)
+	cQuery += "											1 AS NIVEL 		"												+ CHR(13) + CHR(10)
+	cQuery += "				"																							+ CHR(13) + CHR(10)
+	cQuery += "							FROM			"+RetSqlName('SG1')+" SG1 		"								+ CHR(13) + CHR(10)
+	cQuery += "				"																							+ CHR(13) + CHR(10)
+	cQuery += "							WHERE			SG1.D_E_L_E_T_ = ' ' 		"									+ CHR(13) + CHR(10)
+	cQuery += "										AND G1_FILIAL      = '"+xFilial('SG1')+"' 		"					+ CHR(13) + CHR(10)
+	cQuery += "				"																							+ CHR(13) + CHR(10)
+	cQuery += "							UNION ALL 		"																+ CHR(13) + CHR(10)
+	cQuery += "				"																							+ CHR(13) + CHR(10)
+	cQuery += "							SELECT			CODIGO, 		"												+ CHR(13) + CHR(10)
+	cQuery += "											G1_COD, 		"												+ CHR(13) + CHR(10)
+	cQuery += "											G1_COMP, 		"												+ CHR(13) + CHR(10)
+	cQuery += "											QTD * G1_QUANT, 		"										+ CHR(13) + CHR(10)
+	cQuery += "											G1_PERDA, 		"												+ CHR(13) + CHR(10)
+	cQuery += "											G1_INI, 		"												+ CHR(13) + CHR(10)
+	cQuery += "											G1_FIM, 		"												+ CHR(13) + CHR(10)
+	cQuery += "											NIVEL + 1 		"												+ CHR(13) + CHR(10)
+	cQuery += "				"																							+ CHR(13) + CHR(10)
+	cQuery += "							FROM			"+RetSqlName('SG1')+" SG1 		"								+ CHR(13) + CHR(10)
+	cQuery += "																INNER JOIN 		"							+ CHR(13) + CHR(10)
+	cQuery += "											ESTRUT EST						ON	G1_COD = COD_COMP 		"	+ CHR(13) + CHR(10)
+	cQuery += "				"																							+ CHR(13) + CHR(10)
+	cQuery += "							WHERE			SG1.D_E_L_E_T_ = ' ' 		"									+ CHR(13) + CHR(10)
+	cQuery += "										AND SG1.G1_FILIAL = '"+xFilial('SG1')+"' 		"					+ CHR(13) + CHR(10)
+	cQuery += "						) 		"																			+ CHR(13) + CHR(10)
+	cQuery += "				"																							+ CHR(13) + CHR(10)
+	cQuery += "		SELECT			*		"																			+ CHR(13) + CHR(10)
+	cQuery += "				"																							+ CHR(13) + CHR(10)
+	cQuery += "		FROM			ESTRUT E1		"																	+ CHR(13) + CHR(10)
+	cQuery += "				"																							+ CHR(13) + CHR(10)
+	cQuery += "		WHERE			E1.COD_COMP = '"+AllTrim((cAliasSC2)->C2_PRODUTO)+"' 		"						+ CHR(13) + CHR(10)
+	cQuery += "					AND E1.CODIGO = '"+fProdPai((cAliasSC2)->(C2_NUM),(cAliasSC2)->(C2_ITEM))+"' 		"	+ CHR(13) + CHR(10)
+	// cQuery += "		WHERE			E1.COD_COMP in ("														
+	// for nX := 1 to Len(aConsIn)
+	// 	cQuery += "'"+AllTrim(aConsIn[nX])+"', "
+	// next
+	// cQuery := SubStr(cQuery, 1, Len(cQuery)-2)
+	// cQuery += ')'+ CHR(13) + CHR(10)
+
+	// cQuery += "					AND E1.CODIGO = '"+AllTrim((cAliasSC2)->C2_PRODUTO)+"' 		"							+ CHR(13) + CHR(10)
+	cQuery += "		ORDER BY		E1.CODIGO, E1.NIVEL, E1.COD_PAI_NIVEL,  E1.COD_COMP"														
+
+	// MsgAlert(cQuery, 'QUERY')
+	DbUseArea(.T.,"TOPCONN",TcGenQry(,,cQuery),"QRYIN",.T.,.T.)
+
+	DbSelectArea('QRYIN')
+	QRYIN->(DbGoTop())
+
+
+
+return
