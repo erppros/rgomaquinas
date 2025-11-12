@@ -369,7 +369,9 @@ Static Function ItensOP()
 		_oPrinter:SayAlign(_nLine, 070 , "Descrição " , _oFont10B, 420, , , 0, 0)
 		_oPrinter:SayAlign(_nLine, 300 , "Endereço OP: " , _oFont10B, 120, , , 0, 0)
 		_oPrinter:SayAlign(_nLine, 420 , "Un " , _oFont10B, 50, , , 0, 0)
-		_oPrinter:SayAlign(_nLine, 470 , "Quantidade " , _oFont10B, 100, , , 0, 0)
+		_oPrinter:SayAlign(_nLine, 450 , "Quantidade " , _oFont10B, 100, , , 0, 0)
+		_oPrinter:SayAlign(_nLine, 490 , "Quant. Original " , _oFont10B, 100, , , 0, 0)
+
 		_nLine += 15
 
 		While !SD4->(EOF()) .AND. AllTrim(SD4->D4_OP) == (cAliasSC2)->(C2_NUM + C2_ITEM + C2_SEQUEN)
@@ -389,7 +391,9 @@ Static Function ItensOP()
 			_oPrinter:SayAlign(_nLine, 420 , SB1->B1_UM , _oFont10, 50, , , 0, 0)
 			// SG1->(MsSeek(FwxFilial("SG1") + SG1->G1_COMP))
 			//_oPrinter:SayAlign(_nLine, 470 , Transform(SD4->D4_QUANT*(cAliasSC2)->(C2_QUANT) ,"@E 99,999.9999") , _oFont10, 100, , , 0, 0)
-			_oPrinter:SayAlign(_nLine, 470 , Transform(SD4->D4_QUANT ,"@E 99,999.9999") , _oFont10, 100, , , 0, 0) //D4_QUANT JÁ VEM MULTIPLICADO PELA QUANTIDADE DA OP
+			_oPrinter:SayAlign(_nLine, 450 , Transform(SD4->D4_QUANT ,"@E 99,999.9999") , _oFont10, 100, , , 0, 0) //D4_QUANT JÁ VEM MULTIPLICADO PELA QUANTIDADE DA OP
+			_oPrinter:SayAlign(_nLine, 490 , Transform(SD4->D4_QTDEORI ,"@E 99,999.9999") , _oFont10, 100, , , 0, 0) //D4_QUANT JÁ VEM MULTIPLICADO PELA QUANTIDADE DA OP
+
 			_nLine += 15
 
 			aAdd(aConsIn, SD4->D4_COD)

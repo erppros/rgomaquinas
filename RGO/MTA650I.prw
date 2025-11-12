@@ -21,9 +21,9 @@ User Function MTA650I()
     Local cITEMPV := ''
     Local cZCLIENT := ''
     Local cZLOJCLI := ''
-
+    Local cItemCTA := ''
+    
 	If SC2->C2_SEQUEN <> "001"
-
         DbSelectArea("SC2")
         DbSetOrder(1)
         if DbSeek(xFilial("SC2")+SC2->C2_NUM+SC2->C2_ITEM+'001')
@@ -33,7 +33,7 @@ User Function MTA650I()
             cITEMPV := SC2->C2_ITEMPV
             cZCLIENT := SC2->C2_ZCLIENT
             cZLOJCLI := SC2->C2_ZLOJCLI
-            
+            cItemCTA := SC2->C2_ITEMCTA
         Endif
 
         //Volta para o registro da Op filha
@@ -46,7 +46,9 @@ User Function MTA650I()
             SC2->C2_ITEMPV := cITEMPV 
             SC2->C2_ZCLIENT := cZCLIENT 
             SC2->C2_ZLOJCLI := cZLOJCLI 
-
+            If Empty(SC2->C2_ZDESC)
+                SC2->C2_ZDESC := FBuscacpo("SB1",1,xFilial("SB1")+SC2->C2_PRODUTO,"B1_DESC")
+            Endif
         SC2->(msunlock())
 	else
                

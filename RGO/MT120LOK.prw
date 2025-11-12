@@ -27,14 +27,14 @@ If !GDDeleted() .and. _bValCC .and. !Empty(_cConta)
 		//CT1_RGNV1
 		If (CT1->CT1_CCOBRG == "1") .and. Empty(_cCusto)
 			_bOk	:=	.f.
-			MsgAlert( "Informe o Centro de Custo" )
-		Elseif (CT1->CT1_ACCUSTO <> "1") .and. !Empty(_cCusto)
+			MsgAlert( "Informe o Centro de Custo", "Obrigatório" )
+		//ElseIf !Empty()
+
+		Elseif (CT1->CT1_ACCUST <> "1") .and. !Empty(_cCusto)
 			_bOk	:=	.f.
 			MsgAlert( "Centro de Custo NÃO deve ser preenchido" )
 		Endif
 	Endif
-
-	
 
 
 Endif
